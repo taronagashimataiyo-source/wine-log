@@ -6,8 +6,6 @@
   <title>Wine Log</title>
   <meta name="theme-color" content="#fff7f2">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" href="./icons/icon-180.png">
   <link rel="stylesheet" href="./style.css">
 </head>
 
@@ -15,19 +13,36 @@
   <div class="container">
     <header class="topbar">
       <div class="brand">
-        <img class="brandLogo" src="./icons/icon-192.png" alt="Wine Log">
+        <!-- かわいいロゴ：ファイル不要（絶対表示される） -->
+        <div class="brandLogo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="34" height="34">
+            <rect x="2" y="2" width="60" height="60" rx="14" fill="#fff" stroke="#f2c9c0"/>
+            <path d="M22 14h20v10c0 7-5 12-10 12s-10-5-10-12V14z" fill="#f7d7d2" stroke="#7a3a2d" stroke-width="2"/>
+            <path d="M25 18h14v6c0 5-3.5 8.5-7 8.5S25 29 25 24v-6z" fill="#c33a4a" opacity="0.85"/>
+            <path d="M32 36v11" stroke="#7a3a2d" stroke-width="2" stroke-linecap="round"/>
+            <path d="M25 51h14" stroke="#7a3a2d" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="47" cy="21" r="2" fill="#ffd166"/>
+            <path d="M50 18l2-2" stroke="#ffd166" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+
         <div class="brandText">
           <div class="brandTitle">Wine Log</div>
           <div class="brandSub">長島家ワイン記録</div>
         </div>
       </div>
+
       <button class="primary" id="btnAdd" type="button">＋ 追加</button>
     </header>
 
-    <section class="controls card">
-      <input id="q" class="search" placeholder="検索（名前 / 産地 / 品種 / 購入先）">
-      <div class="row">
+    <section class="card">
+      <div class="filters">
         <div class="field">
+          <label>検索（名前 / 産地 / 品種 / 購入先）</label>
+          <input id="q" placeholder="例：ピノ / ブルゴーニュ / 成城石井 …" />
+        </div>
+
+        <div class="field w160">
           <label>種類</label>
           <select id="typeFilter">
             <option value="">指定なし</option>
@@ -36,7 +51,8 @@
             <option value="other">その他</option>
           </select>
         </div>
-        <div class="field">
+
+        <div class="field w160">
           <label>並び替え</label>
           <select id="sort">
             <option value="new">新しい順</option>
@@ -48,31 +64,30 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" style="margin-top:12px;">
       <h2>記録一覧</h2>
-      <div id="list" class="list"></div>
-      <div id="empty" class="muted">まだ記録がありません。「＋ 追加」から入れてください。</div>
+      <div class="list" id="list"></div>
     </section>
   </div>
 
-  <!-- Modal -->
-  <div class="backdrop" id="backdrop" aria-hidden="true">
+  <!-- 追加/編集モーダル -->
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modalHeader">
         <div>
           <div class="modalTitle" id="modalTitle">追加</div>
-          <div class="muted small">飲んだ日は自動で入ります</div>
+          <div class="note">飲んだ日は自動で入ります。</div>
         </div>
         <button class="ghost" id="btnClose" type="button">閉じる</button>
       </div>
 
-      <div class="grid">
+      <div class="grid2" style="margin-top:12px;">
         <div class="field">
           <label>名前</label>
-          <input id="f_name" placeholder="例：ワイン名 / 生産者">
+          <input id="f_name" placeholder="例：ワイン名 / 生産者など">
         </div>
         <div class="field">
-          <label>種類</label>
+          <label>種類（赤/白/その他）</label>
           <select id="f_type">
             <option value="">未入力</option>
             <option value="red">赤</option>
@@ -92,7 +107,7 @@
 
         <div class="field">
           <label>買った場所</label>
-          <input id="f_shop" placeholder="例：成城石井 / ディプント / 蓼科">
+          <input id="f_shop" placeholder="例：スーパー / ディプント / 蓼科">
         </div>
         <div class="field">
           <label>値段（円）</label>
@@ -105,35 +120,52 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panelTitle">評価</div>
-        <div class="grid2">
-          <div class="field">
-            <label>太郎（1〜5）</label>
-            <select id="f_taroRating">
-              <option value="">未入力</option>
-              <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-            </select>
-            <textarea id="f_taroComment" placeholder="コメント（短くでOK）"></textarea>
+      <div class="grid2" style="margin-top:12px;">
+        <div class="panel">
+          <div class="panelTitle">太郎</div>
+          <div class="grid2">
+            <div class="field">
+              <label>評価（1〜5）</label>
+              <select id="f_taroRating">
+                <option value="">未入力</option>
+                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>コメント</label>
+              <textarea id="f_taroComment" placeholder="短くでOK（例：香り強い、酸が好き）"></textarea>
+            </div>
           </div>
-          <div class="field">
-            <label>真子（1〜5）</label>
-            <select id="f_makoRating">
-              <option value="">未入力</option>
-              <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-            </select>
-            <textarea id="f_makoComment" placeholder="コメント（短くでOK）"></textarea>
+        </div>
+
+        <div class="panel">
+          <div class="panelTitle">真子</div>
+          <div class="grid2">
+            <div class="field">
+              <label>評価（1〜5）</label>
+              <select id="f_makoRating">
+                <option value="">未入力</option>
+                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>コメント</label>
+              <textarea id="f_makoComment" placeholder="短くでOK"></textarea>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="modalFooter">
-        <button class="danger" id="btnDelete" type="button">削除</button>
+        <button class="danger" id="btnDelete" type="button" style="display:none;">削除</button>
         <button class="primary" id="btnSave" type="button">保存</button>
       </div>
     </div>
   </div>
 
+  <div class="toast" id="toast">OK</div>
+
+  <!-- deferは使わず、末尾で確実に読み込む -->
   <script src="./app.js"></script>
 </body>
 </html>
