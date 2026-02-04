@@ -1,139 +1,219 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Wine Log</title>
-  <meta name="theme-color" content="#fff7f2">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" href="./icons/icon-180.png">
-  <link rel="stylesheet" href="./style.css">
-</head>
+'use strict';
 
-<body>
-  <div class="container">
-    <header class="topbar">
-      <div class="brand">
-        <img class="brandLogo" src="./icons/icon-192.png" alt="Wine Log">
-        <div class="brandText">
-          <div class="brandTitle">Wine Log</div>
-          <div class="brandSub">長島家ワイン記録</div>
-        </div>
-      </div>
-      <button class="primary" id="btnAdd" type="button">＋ 追加</button>
-    </header>
+const $ = (id) => document.getElementById(id);
+const STORAGE_KEY = 'wineLogEntries_v2';
 
-    <section class="controls card">
-      <input id="q" class="search" placeholder="検索（名前 / 産地 / 品種 / 購入先）">
-      <div class="row">
-        <div class="field">
-          <label>種類</label>
-          <select id="typeFilter">
-            <option value="">指定なし</option>
-            <option value="red">赤</option>
-            <option value="white">白</option>
-            <option value="other">その他</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>並び替え</label>
-          <select id="sort">
-            <option value="new">新しい順</option>
-            <option value="old">古い順</option>
-            <option value="taro">太郎★が高い順</option>
-            <option value="mako">真子★が高い順</option>
-          </select>
-        </div>
-      </div>
-    </section>
+let entries = loadEntries();
+let editingId = null;
 
-    <section class="card">
-      <h2>記録一覧</h2>
-      <div id="list" class="list"></div>
-      <div id="empty" class="muted">まだ記録がありません。「＋ 追加」から入れてください。</div>
-    </section>
-  </div>
+init();
 
-  <!-- Modal -->
-  <div class="backdrop" id="backdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" id="modalTitle">追加</div>
-          <div class="muted small">飲んだ日は自動で入ります</div>
-        </div>
-        <button class="ghost" id="btnClose" type="button">閉じる</button>
-      </div>
+function init(){
+  // ボタンが押せない問題の9割は「イベントが付いてない」か「JSが途中で落ちてる」。
+  // ここで必ず付ける（scriptはbody末尾なのでDOMは確実に存在する）
+  $('btnAdd').addEventListener('click', () => openModal(null));
+  $('btnClose').addEventListener('click', closeModal);
+  $('modalBackdrop').addEventListener('click', (e) => {
+    if(e.target === $('modalBackdrop')) closeModal();
+  });
+  $('btnSave').addEventListener('click', onSave);
+  $('btnDelete').addEventListener('click', onDelete);
 
-      <div class="grid">
-        <div class="field">
-          <label>名前</label>
-          <input id="f_name" placeholder="例：ワイン名 / 生産者">
-        </div>
-        <div class="field">
-          <label>種類</label>
-          <select id="f_type">
-            <option value="">未入力</option>
-            <option value="red">赤</option>
-            <option value="white">白</option>
-            <option value="other">その他</option>
-          </select>
-        </div>
+  $('q').addEventListener('input', render);
+  $('sort').addEventListener('change', render);
+  $('typeFilter').addEventListener('change', render);
 
-        <div class="field">
-          <label>産地</label>
-          <input id="f_origin" placeholder="例：ブルゴーニュ / ナパ / 山梨">
-        </div>
-        <div class="field">
-          <label>ブドウの品種</label>
-          <input id="f_grape" placeholder="例：ピノ・ノワール / シャルドネ">
-        </div>
+  render();
+}
 
-        <div class="field">
-          <label>買った場所</label>
-          <input id="f_shop" placeholder="例：成城石井 / ディプント / 蓼科">
-        </div>
-        <div class="field">
-          <label>値段（円）</label>
-          <input id="f_price" inputmode="numeric" placeholder="例：2500">
-        </div>
+function nowString(){
+  const d = new Date();
+  const pad = (n)=> String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-        <div class="field">
-          <label>飲んだ日（自動）</label>
-          <input id="f_drankAt" disabled>
-        </div>
-      </div>
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1200);
+}
 
-      <div class="panel">
-        <div class="panelTitle">評価</div>
-        <div class="grid2">
-          <div class="field">
-            <label>太郎（1〜5）</label>
-            <select id="f_taroRating">
-              <option value="">未入力</option>
-              <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-            </select>
-            <textarea id="f_taroComment" placeholder="コメント（短くでOK）"></textarea>
+function saveEntries(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  }catch{
+    return [];
+  }
+}
+
+function openModal(entry){
+  editingId = entry ? entry.id : null;
+
+  $('modalTitle').textContent = editingId ? '編集' : '追加';
+  $('btnDelete').style.display = editingId ? 'inline-flex' : 'none';
+
+  $('f_name').value = entry?.name ?? '';
+  $('f_type').value = entry?.type ?? '';
+  $('f_origin').value = entry?.origin ?? '';
+  $('f_grape').value = entry?.grape ?? '';
+  $('f_shop').value = entry?.shop ?? '';
+  $('f_price').value = entry?.price ?? '';
+  $('f_drankAt').value = entry?.drankAt ?? nowString();
+
+  $('f_taroRating').value = entry?.taroRating ?? '';
+  $('f_taroComment').value = entry?.taroComment ?? '';
+
+  $('f_makoRating').value = entry?.makoRating ?? '';
+  $('f_makoComment').value = entry?.makoComment ?? '';
+
+  $('modalBackdrop').setAttribute('aria-hidden','false');
+}
+
+function closeModal(){
+  $('modalBackdrop').setAttribute('aria-hidden','true');
+}
+
+function onSave(){
+  const entry = {
+    id: editingId ?? cryptoId(),
+    name: $('f_name').value.trim(),
+    type: $('f_type').value || '',
+    origin: $('f_origin').value.trim(),
+    grape: $('f_grape').value.trim(),
+    shop: $('f_shop').value.trim(),
+    price: $('f_price').value.trim(),
+    drankAt: $('f_drankAt').value || nowString(),
+    taroRating: $('f_taroRating').value || '',
+    taroComment: $('f_taroComment').value.trim(),
+    makoRating: $('f_makoRating').value || '',
+    makoComment: $('f_makoComment').value.trim(),
+  };
+
+  const idx = entries.findIndex(e => e.id === entry.id);
+  if(idx >= 0) entries[idx] = entry;
+  else entries.unshift(entry);
+
+  saveEntries();
+  closeModal();
+  render();
+  toast('保存しました');
+}
+
+function onDelete(){
+  if(!editingId) return;
+  entries = entries.filter(e => e.id !== editingId);
+  saveEntries();
+  closeModal();
+  render();
+  toast('削除しました');
+}
+
+function cryptoId(){
+  try{
+    return crypto.randomUUID();
+  }catch{
+    return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function render(){
+  const q = $('q').value.trim().toLowerCase();
+  const sort = $('sort').value;
+  const typeFilter = $('typeFilter').value;
+
+  let list = entries.slice();
+
+  if(q){
+    list = list.filter(e => {
+      const hay = `${e.name||''} ${e.origin||''} ${e.grape||''} ${e.shop||''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  if(typeFilter){
+    list = list.filter(e => (e.type||'') === typeFilter);
+  }
+
+  list.sort((a,b)=>{
+    if(sort === 'old') return (a.drankAt||'').localeCompare(b.drankAt||'');
+    if(sort === 'taro') return (num(b.taroRating) - num(a.taroRating)) || (b.drankAt||'').localeCompare(a.drankAt||'');
+    if(sort === 'mako') return (num(b.makoRating) - num(a.makoRating)) || (b.drankAt||'').localeCompare(a.drankAt||'');
+    // new
+    return (b.drankAt||'').localeCompare(a.drankAt||'');
+  });
+
+  const root = $('list');
+  if(list.length === 0){
+    root.innerHTML = `<div class="note">まだ記録がありません。「＋ 追加」から入れてください。</div>`;
+    return;
+  }
+
+  root.innerHTML = list.map(e => {
+    const chips = [];
+
+    const typeLabel = e.type === 'red' ? '赤' : e.type === 'white' ? '白' : e.type === 'other' ? 'その他' : '';
+    if(typeLabel) chips.push(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+
+    if(e.origin) chips.push(`<span class="chip">📍 ${escapeHtml(e.origin)}</span>`);
+    if(e.grape) chips.push(`<span class="chip">🍇 ${escapeHtml(e.grape)}</span>`);
+    if(e.shop) chips.push(`<span class="chip">🛒 ${escapeHtml(e.shop)}</span>`);
+    if(e.price) chips.push(`<span class="chip">💴 ${escapeHtml(e.price)}</span>`);
+
+    const taro = e.taroRating ? `太郎 ${stars(e.taroRating)}` : '';
+    const mako = e.makoRating ? `真子 ${stars(e.makoRating)}` : '';
+    const ratingLine = [taro, mako].filter(Boolean).join(' / ');
+
+    return `
+      <div class="item">
+        <div class="itemTop">
+          <div>
+            <div class="itemTitle">${escapeHtml(e.name || '(無題)')}</div>
+            <div class="itemMeta">${escapeHtml(e.drankAt || '')}</div>
           </div>
-          <div class="field">
-            <label>真子（1〜5）</label>
-            <select id="f_makoRating">
-              <option value="">未入力</option>
-              <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-            </select>
-            <textarea id="f_makoComment" placeholder="コメント（短くでOK）"></textarea>
-          </div>
+          <button class="ghost" type="button" data-edit="${e.id}">開く</button>
         </div>
-      </div>
 
-      <div class="modalFooter">
-        <button class="danger" id="btnDelete" type="button">削除</button>
-        <button class="primary" id="btnSave" type="button">保存</button>
-      </div>
-    </div>
-  </div>
+        ${ratingLine ? `<div class="itemMeta" style="margin-top:8px;"><span class="stars">${escapeHtml(ratingLine)}</span></div>` : ''}
 
-  <script src="./app.js"></script>
-</body>
-</html>
+        ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  // edit buttons
+  root.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-edit');
+      const entry = entries.find(e => e.id === id);
+      openModal(entry || null);
+    });
+  });
+}
+
+function num(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function stars(v){
+  const n = num(v);
+  if(!n) return '';
+  return '★'.repeat(n);
+}
+
+function escapeHtml(s){
+  return String(s ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
