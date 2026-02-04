@@ -138,3 +138,64 @@
         </div>
 
         <div class="field">
+          <label>飲んだ日（自動）</label>
+          <input id="f_drankAt" disabled>
+        </div>
+      </div>
+
+      <div class="grid2 mt12">
+        <div class="panel">
+          <div class="panelTitle">太郎</div>
+          <div class="grid2">
+            <div class="field">
+              <label>評価（1〜5）</label>
+              <select id="f_taroRating">
+                <option value="">未入力</option>
+                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>コメント</label>
+              <textarea id="f_taroComment" placeholder="短くでOK（例：香り強い、酸が好き）"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panelTitle">真子</div>
+          <div class="grid2">
+            <div class="field">
+              <label>評価（1〜5）</label>
+              <select id="f_makoRating">
+                <option value="">未入力</option>
+                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>コメント</label>
+              <textarea id="f_makoComment" placeholder="短くでOK"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt12">
+        <div class="field">
+          <label>写真（任意：1枚）</label>
+          <input id="f_photo" type="file" accept="image/*">
+          <div class="thumb" id="photoPreview">写真なし</div>
+        </div>
+      </div>
+
+      <div class="modalFooter">
+        <button class="danger" id="btnDelete" type="button" style="display:none;">削除</button>
+        <div class="grow"></div>
+        <button class="primary" id="btnSave" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">OK</div>
+  <script defer src="./app.js?v=20260204b"></script>
+</body>
+</html>
