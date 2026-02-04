@@ -1,76 +1,66 @@
 'use strict';
 
+/** ★ここを自分の値に変更 **/
+const API_URL = 'https://script.google.com/macros/s/AKfycbxqt_2vJDsl4_OBDkLimOLdX6TpSAQc7ZryPgLMtcxffwgEaBDBwXfaJyIRf3Yhv-0zng/exec';
+const API_KEY = 'PASTE_TAROMAKO-winelog';
+
 const $ = (id) => document.getElementById(id);
-const STORAGE_KEY = 'wineLogEntries_v2';
-
-let entries = loadEntries();
+let entries = [];
 let editingId = null;
-
-init();
-
-function init(){
-  // ボタンが押せない問題の9割は「イベントが付いてない」か「JSが途中で落ちてる」。
-  // ここで必ず付ける（scriptはbody末尾なのでDOMは確実に存在する）
-  $('btnAdd').addEventListener('click', () => openModal(null));
-  $('btnClose').addEventListener('click', closeModal);
-  $('modalBackdrop').addEventListener('click', (e) => {
-    if(e.target === $('modalBackdrop')) closeModal();
-  });
-  $('btnSave').addEventListener('click', onSave);
-  $('btnDelete').addEventListener('click', onDelete);
-
-  $('q').addEventListener('input', render);
-  $('sort').addEventListener('change', render);
-  $('typeFilter').addEventListener('change', render);
-
-  render();
-}
-
-function nowString(){
-  const d = new Date();
-  const pad = (n)=> String(n).padStart(2,'0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 function toast(msg){
   const t = $('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(()=> t.classList.remove('show'), 1200);
+  setTimeout(() => t.classList.remove('show'), 1400);
 }
 
-function saveEntries(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+function nowString(){
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function loadEntries(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  }catch{
-    return [];
-  }
+async function apiGet(){
+  const url = `${API_URL}?key=${encodeURIComponent(API_KEY)}`;
+  const res = await fetch(url, { cache:'no-store' });
+  const data = await res.json();
+  if (!data.items) throw new Error('API error');
+  return data.items;
 }
 
-function openModal(entry){
-  editingId = entry ? entry.id : null;
+async function apiUpsert(item){
+  const res = await fetch(`${API_URL}?key=${encodeURIComponent(API_KEY)}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ op:'upsert', item })
+  });
+  return res.json();
+}
 
+async function apiDelete(id){
+  const res = await fetch(`${API_URL}?key=${encodeURIComponent(API_KEY)}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ op:'delete', id })
+  });
+  return res.json();
+}
+
+function openModal(entry=null){
+  editingId = entry?.id ?? null;
   $('modalTitle').textContent = editingId ? '編集' : '追加';
-  $('btnDelete').style.display = editingId ? 'inline-flex' : 'none';
 
   $('f_name').value = entry?.name ?? '';
-  $('f_type').value = entry?.type ?? '';
   $('f_origin').value = entry?.origin ?? '';
   $('f_grape').value = entry?.grape ?? '';
   $('f_shop').value = entry?.shop ?? '';
+  $('f_type').value = entry?.type ?? '';
   $('f_price').value = entry?.price ?? '';
   $('f_drankAt').value = entry?.drankAt ?? nowString();
 
   $('f_taroRating').value = entry?.taroRating ?? '';
   $('f_taroComment').value = entry?.taroComment ?? '';
-
   $('f_makoRating').value = entry?.makoRating ?? '';
   $('f_makoComment').value = entry?.makoComment ?? '';
 
@@ -81,139 +71,154 @@ function closeModal(){
   $('modalBackdrop').setAttribute('aria-hidden','true');
 }
 
-function onSave(){
-  const entry = {
-    id: editingId ?? cryptoId(),
-    name: $('f_name').value.trim(),
-    type: $('f_type').value || '',
-    origin: $('f_origin').value.trim(),
-    grape: $('f_grape').value.trim(),
-    shop: $('f_shop').value.trim(),
-    price: $('f_price').value.trim(),
-    drankAt: $('f_drankAt').value || nowString(),
-    taroRating: $('f_taroRating').value || '',
-    taroComment: $('f_taroComment').value.trim(),
-    makoRating: $('f_makoRating').value || '',
-    makoComment: $('f_makoComment').value.trim(),
-  };
+function normalizeStr(v){ return (v ?? '').toString().trim(); }
 
-  const idx = entries.findIndex(e => e.id === entry.id);
-  if(idx >= 0) entries[idx] = entry;
-  else entries.unshift(entry);
-
-  saveEntries();
-  closeModal();
-  render();
-  toast('保存しました');
-}
-
-function onDelete(){
-  if(!editingId) return;
-  entries = entries.filter(e => e.id !== editingId);
-  saveEntries();
-  closeModal();
-  render();
-  toast('削除しました');
-}
-
-function cryptoId(){
-  try{
-    return crypto.randomUUID();
-  }catch{
-    return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
-}
-
-function render(){
-  const q = $('q').value.trim().toLowerCase();
+function renderList(){
+  const q = normalizeStr($('q').value).toLowerCase();
   const sort = $('sort').value;
   const typeFilter = $('typeFilter').value;
 
-  let list = entries.slice();
+  let list = [...entries];
 
-  if(q){
+  // filter: type
+  if (typeFilter) list = list.filter(e => (e.type || '') === typeFilter);
+
+  // search
+  if (q){
     list = list.filter(e => {
-      const hay = `${e.name||''} ${e.origin||''} ${e.grape||''} ${e.shop||''}`.toLowerCase();
+      const hay = [
+        e.name, e.origin, e.grape, e.shop
+      ].map(x => normalizeStr(x).toLowerCase()).join(' / ');
       return hay.includes(q);
     });
   }
 
-  if(typeFilter){
-    list = list.filter(e => (e.type||'') === typeFilter);
-  }
+  // sort
+  const num = (v) => v === '' || v == null ? -1 : Number(v);
+  if (sort === 'new') list.sort((a,b) => normalizeStr(b.drankAt).localeCompare(normalizeStr(a.drankAt)));
+  if (sort === 'old') list.sort((a,b) => normalizeStr(a.drankAt).localeCompare(normalizeStr(b.drankAt)));
+  if (sort === 'taro') list.sort((a,b) => num(b.taroRating) - num(a.taroRating));
+  if (sort === 'mako') list.sort((a,b) => num(b.makoRating) - num(a.makoRating));
 
-  list.sort((a,b)=>{
-    if(sort === 'old') return (a.drankAt||'').localeCompare(b.drankAt||'');
-    if(sort === 'taro') return (num(b.taroRating) - num(a.taroRating)) || (b.drankAt||'').localeCompare(a.drankAt||'');
-    if(sort === 'mako') return (num(b.makoRating) - num(a.makoRating)) || (b.drankAt||'').localeCompare(a.drankAt||'');
-    // new
-    return (b.drankAt||'').localeCompare(a.drankAt||'');
-  });
-
-  const root = $('list');
-  if(list.length === 0){
-    root.innerHTML = `<div class="note">まだ記録がありません。「＋ 追加」から入れてください。</div>`;
+  const el = $('list');
+  if (!list.length){
+    el.innerHTML = `<div class="note">まだ記録がありません。「＋ 追加」から入れてください。</div>`;
     return;
   }
 
-  root.innerHTML = list.map(e => {
+  el.innerHTML = list.map(e => {
     const chips = [];
-
     const typeLabel = e.type === 'red' ? '赤' : e.type === 'white' ? '白' : e.type === 'other' ? 'その他' : '';
-    if(typeLabel) chips.push(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+    if (typeLabel) chips.push(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+    if (normalizeStr(e.origin)) chips.push(`<span class="chip">${escapeHtml(e.origin)}</span>`);
+    if (normalizeStr(e.grape)) chips.push(`<span class="chip">${escapeHtml(e.grape)}</span>`);
+    if (normalizeStr(e.shop)) chips.push(`<span class="chip">${escapeHtml(e.shop)}</span>`);
 
-    if(e.origin) chips.push(`<span class="chip">📍 ${escapeHtml(e.origin)}</span>`);
-    if(e.grape) chips.push(`<span class="chip">🍇 ${escapeHtml(e.grape)}</span>`);
-    if(e.shop) chips.push(`<span class="chip">🛒 ${escapeHtml(e.shop)}</span>`);
-    if(e.price) chips.push(`<span class="chip">💴 ${escapeHtml(e.price)}</span>`);
-
-    const taro = e.taroRating ? `太郎 ${stars(e.taroRating)}` : '';
-    const mako = e.makoRating ? `真子 ${stars(e.makoRating)}` : '';
-    const ratingLine = [taro, mako].filter(Boolean).join(' / ');
+    const taroStars = e.taroRating ? `★${e.taroRating}` : '—';
+    const makoStars = e.makoRating ? `★${e.makoRating}` : '—';
 
     return `
       <div class="item">
         <div class="itemTop">
           <div>
-            <div class="itemTitle">${escapeHtml(e.name || '(無題)')}</div>
-            <div class="itemMeta">${escapeHtml(e.drankAt || '')}</div>
+            <div class="itemTitle">${escapeHtml(normalizeStr(e.name) || '(無題)')}</div>
+            <div class="note">飲んだ日：${escapeHtml(normalizeStr(e.drankAt) || '')}</div>
           </div>
-          <button class="ghost" type="button" data-edit="${e.id}">開く</button>
         </div>
 
-        ${ratingLine ? `<div class="itemMeta" style="margin-top:8px;"><span class="stars">${escapeHtml(ratingLine)}</span></div>` : ''}
+        <div class="chips">${chips.join('')}</div>
 
-        ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
+        <div class="ratings">
+          <div class="r"><span class="muted">太郎</span> <span class="stars">${taroStars}</span></div>
+          <div class="r"><span class="muted">真子</span> <span class="stars">${makoStars}</span></div>
+          ${normalizeStr(e.price) ? `<div class="r"><span class="muted">価格</span> <span>${escapeHtml(e.price)}円</span></div>` : ''}
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button type="button" onclick="window.__edit('${e.id}')">開く</button>
+          <button type="button" onclick="window.__del('${e.id}')">削除</button>
+        </div>
       </div>
     `;
   }).join('');
-
-  // edit buttons
-  root.querySelectorAll('[data-edit]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.getAttribute('data-edit');
-      const entry = entries.find(e => e.id === id);
-      openModal(entry || null);
-    });
-  });
-}
-
-function num(v){
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function stars(v){
-  const n = num(v);
-  if(!n) return '';
-  return '★'.repeat(n);
 }
 
 function escapeHtml(s){
-  return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
+  return String(s).replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[m]));
 }
+
+async function refresh(){
+  try{
+    entries = await apiGet();
+    renderList();
+  }catch(err){
+    console.error(err);
+    toast('読み込み失敗（API設定を確認）');
+  }
+}
+
+async function onSave(){
+  const item = {
+    id: editingId || '',
+    createdAt: '', // Sheet側で任意。空でOK
+    drankAt: $('f_drankAt').value || nowString(),
+    type: $('f_type').value || '',
+    name: $('f_name').value || '',
+    origin: $('f_origin').value || '',
+    grape: $('f_grape').value || '',
+    shop: $('f_shop').value || '',
+    price: $('f_price').value || '',
+    taroRating: $('f_taroRating').value || '',
+    taroComment: $('f_taroComment').value || '',
+    makoRating: $('f_makoRating').value || '',
+    makoComment: $('f_makoComment').value || '',
+    photo: ''
+  };
+
+  try{
+    await apiUpsert(item);
+    closeModal();
+    toast('保存しました');
+    await refresh();
+  }catch(err){
+    console.error(err);
+    toast('保存失敗（API設定/権限）');
+  }
+}
+
+window.__edit = (id) => {
+  const e = entries.find(x => x.id === id);
+  openModal(e);
+};
+
+window.__del = async (id) => {
+  if (!confirm('削除しますか？')) return;
+  try{
+    await apiDelete(id);
+    toast('削除しました');
+    await refresh();
+  }catch(err){
+    console.error(err);
+    toast('削除失敗');
+  }
+};
+
+function bind(){
+  $('btnAdd').addEventListener('click', () => openModal(null));
+  $('btnClose').addEventListener('click', closeModal);
+  $('modalBackdrop').addEventListener('click', (e) => {
+    if (e.target === $('modalBackdrop')) closeModal();
+  });
+  $('btnSave').addEventListener('click', onSave);
+
+  $('q').addEventListener('input', renderList);
+  $('sort').addEventListener('change', renderList);
+  $('typeFilter').addEventListener('change', renderList);
+}
+
+bind();
+refresh();
+// 10秒ごとに自動更新（複数人で同時利用の反映用）
+setInterval(refresh, 10000);
