@@ -1,201 +1,316 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Wine Log</title>
-  <meta name="theme-color" content="#fff7f2">
+:root{
+  --bg:#fff7f2;
+  --card:#ffffff;
+  --text:#1f2328;
+  --muted:#6b7280;
+  --border:#e7e7ea;
+  --primary:#e14b4b;
+  --primaryText:#ffffff;
+  --shadow: 0 6px 20px rgba(0,0,0,.06);
+}
 
-  <!-- ロゴ（icons/logo.svg がある前提） -->
-  <link rel="icon" href="./icons/logo.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="./icons/logo.svg">
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
 
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css">
-</head>
+.container{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
+}
 
-<body>
-  <div class="container">
-    <header class="header">
-      <div class="brand">
-        <img src="./icons/logo.svg" alt="Wine Log" class="brandLogo">
-        <div class="brandText">
-          <div class="title">Wine Log</div>
-          <div class="sub">長島家ワイン記録</div>
-        </div>
-      </div>
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 10px;
+  backdrop-filter: blur(10px);
+  z-index: 2;
+}
 
-      <div class="actions">
-        <button class="primary" id="btnAdd" type="button">＋ 追加</button>
-      </div>
-    </header>
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
 
-    <section class="card">
-      <div class="filters">
-        <div class="field">
-          <label>検索（名前 / 産地 / 品種 / 購入先）</label>
-          <input id="q" placeholder="例：ピノ / ブルゴーニュ / 成城石井 …">
-        </div>
+.brandLogo{
+  width:28px;
+  height:28px;
+  border-radius:10px;
+}
 
-        <div class="field w160">
-          <label>並び替え</label>
-          <select id="sort">
-            <option value="new">新しい順</option>
-            <option value="old">古い順</option>
-            <option value="taro">太郎★が高い順</option>
-            <option value="mako">真子★が高い順</option>
-          </select>
-        </div>
+.title{ font-weight:800; font-size:18px; line-height:1.1; }
+.sub{ font-size:12px; color: var(--muted); margin-top:2px; }
 
-        <div class="field w140">
-          <label>種類</label>
-          <select id="typeFilter">
-            <option value="">指定なし</option>
-            <option value="red">赤</option>
-            <option value="white">白</option>
-            <option value="other">その他</option>
-          </select>
-        </div>
+.actions{ display:flex; gap:8px; align-items:center; }
 
-        <div class="field w140">
-          <label>太郎★ 最低</label>
-          <select id="minTaro">
-            <option value="0">指定なし</option>
-            <option value="5">5以上</option>
-            <option value="4">4以上</option>
-            <option value="3">3以上</option>
-            <option value="2">2以上</option>
-            <option value="1">1以上</option>
-          </select>
-        </div>
+button{
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:hover{ filter: brightness(.98); }
+button:active{ transform: translateY(1px); }
+button.primary{
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primaryText);
+}
+button.ghost{
+  background: #fff;
+}
+button.danger{
+  background:#fff;
+  border-color:#ffb3c2;
+  color:#b4232c;
+}
 
-        <div class="field w140">
-          <label>真子★ 最低</label>
-          <select id="minMako">
-            <option value="0">指定なし</option>
-            <option value="5">5以上</option>
-            <option value="4">4以上</option>
-            <option value="3">3以上</option>
-            <option value="2">2以上</option>
-            <option value="1">1以上</option>
-          </select>
-        </div>
-      </div>
-    </section>
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-top: 12px;
+}
 
-    <section class="card">
-      <h2 class="h2">記録一覧</h2>
-      <div class="list" id="list"></div>
-      <div class="empty" id="empty" style="display:none;">まだ記録がありません。右上の「＋追加」から登録できます。</div>
-    </section>
-  </div>
+.h2{
+  margin:0 0 10px 0;
+  font-size: 16px;
+}
 
-  <!-- Modal -->
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal" id="modal" role="dialog" aria-modal="true">
-      <div class="modalHeader">
-        <div>
-          <div class="modalTitle" id="modalTitle">追加</div>
-          <div class="modalSub">保存後に一覧へ反映されます。</div>
-        </div>
-        <button class="ghost" id="btnClose" type="button">閉じる</button>
-      </div>
+.filters{
+  display:flex;
+  gap:12px;
+  flex-wrap: wrap;
+}
 
-      <div class="grid2">
-        <div class="field">
-          <label>名前</label>
-          <input id="f_name" placeholder="例：ワイン名 / 生産者など">
-        </div>
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width: 220px;
+  flex: 1;
+}
+.field.w160{ width:160px; min-width:160px; flex:0 0 auto; }
+.field.w140{ width:140px; min-width:140px; flex:0 0 auto; }
 
-        <div class="field">
-          <label>産地</label>
-          <input id="f_origin" placeholder="例：ブルゴーニュ / ナパ / 山梨">
-        </div>
+label{
+  font-size: 12px;
+  color: var(--muted);
+}
 
-        <div class="field">
-          <label>ブドウの品種</label>
-          <input id="f_grape" placeholder="例：ピノ・ノワール / シャルドネ">
-        </div>
+input,select,textarea{
+  border: 1px solid var(--border);
+  background:#fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+textarea{ min-height: 64px; resize: vertical; }
 
-        <div class="field">
-          <label>種類</label>
-          <select id="f_type">
-            <option value="">未指定</option>
-            <option value="red">赤</option>
-            <option value="white">白</option>
-            <option value="other">その他</option>
-          </select>
-        </div>
+.list{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap:12px;
+}
 
-        <div class="field">
-          <label>買った場所</label>
-          <input id="f_shop" placeholder="例：スーパー / ディプント / 蓼科">
-        </div>
+.item{
+  border: 1px solid var(--border);
+  background:#fff;
+  border-radius: 16px;
+  padding: 12px;
+}
 
-        <div class="field">
-          <label>値段</label>
-          <input id="f_price" inputmode="numeric" placeholder="例：2500（円）">
-        </div>
+.itemTop{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+}
+.itemTitle{
+  font-weight:800;
+}
+.itemDate{
+  font-size:12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
 
-        <div class="field">
-          <label>飲んだ日（自動）</label>
-          <input id="f_drankAt" disabled>
-        </div>
-      </div>
+.chips{
+  display:flex;
+  flex-wrap: wrap;
+  gap:6px;
+  margin-top: 10px;
+}
+.chip{
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
 
-      <div class="grid2 mt12">
-        <div class="panel">
-          <div class="panelTitle">太郎</div>
-          <div class="grid2">
-            <div class="field">
-              <label>評価（1〜5）</label>
-              <select id="f_taroRating">
-                <option value="">未入力</option>
-                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>コメント</label>
-              <textarea id="f_taroComment" placeholder="短くでOK（例：香り強い、酸が好き）"></textarea>
-            </div>
-          </div>
-        </div>
+.ratings{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+  flex-wrap: wrap;
+}
+.r{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  font-size: 13px;
+}
+.who{ color: var(--muted); }
+.stars{ font-weight: 900; }
+.muted{ color: var(--muted); }
 
-        <div class="panel">
-          <div class="panelTitle">真子</div>
-          <div class="grid2">
-            <div class="field">
-              <label>評価（1〜5）</label>
-              <select id="f_makoRating">
-                <option value="">未入力</option>
-                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>コメント</label>
-              <textarea id="f_makoComment" placeholder="短くでOK"></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
+.itemActions{
+  display:flex;
+  gap:8px;
+  margin-top: 10px;
+}
 
-      <div class="mt12">
-        <div class="field">
-          <label>写真（任意：1枚）</label>
-          <input id="f_photo" type="file" accept="image/*">
-          <div class="thumb" id="photoPreview">写真なし</div>
-        </div>
-      </div>
+.photo{
+  margin-top: 10px;
+  width:100%;
+  height:140px;
+  border-radius: 14px;
+  border:1px solid var(--border);
+  background-size: cover;
+  background-position: center;
+}
 
-      <div class="modalFooter">
-        <button class="danger" id="btnDelete" type="button" style="display:none;">削除</button>
-        <div class="grow"></div>
-        <button class="primary" id="btnSave" type="button">保存</button>
-      </div>
-    </div>
-  </div>
+.empty{
+  color: var(--muted);
+  padding: 14px 0 0 0;
+}
 
-  <div class="toast" id="toast">OK</div>
-  <script defer src="./app.js?v=20260204b"></script>
-</body>
-</html>
+/* Modal */
+.modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.25);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+  z-index: 10;
+}
+.modal-backdrop[aria-hidden="false"]{ display:flex; }
+
+.modal{
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow:auto;
+  background:#fff;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 70px rgba(0,0,0,.18);
+  padding: 14px;
+}
+
+.modalHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.modalTitle{ font-weight:900; font-size:16px; }
+.modalSub{ font-size:12px; color: var(--muted); margin-top:2px; }
+
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.mt12{ margin-top: 12px; }
+
+.panel{
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: #fff;
+}
+.panelTitle{
+  font-weight:900;
+  margin-bottom: 8px;
+}
+
+.thumb{
+  margin-top: 10px;
+  width: 120px;
+  height: 120px;
+  border-radius: 14px;
+  border: 1px dashed var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color: var(--muted);
+  background-size: cover;
+  background-position: center;
+}
+.thumb.has{
+  border-style: solid;
+  color: transparent;
+}
+
+.modalFooter{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.grow{ flex: 1; }
+
+/* Toast */
+.toast{
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: rgba(20,20,20,.9);
+  color:#fff;
+  padding: 10px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  opacity: 0;
+  pointer-events:none;
+  transition: opacity .18s ease;
+  z-index: 20;
+}
+.toast.show{ opacity: 1; }
+
+/* 種類チップ色 */
+.chip.wineType.red   { background:#ffe5ea; border-color:#ffb3c2; }
+.chip.wineType.white { background:#fff6d6; border-color:#ffe08a; }
+.chip.wineType.other { background:#f0f1f3; border-color:#d9dde3; }
+
+@media (max-width: 720px){
+  .grid2{ grid-template-columns: 1fr; }
+}
