@@ -181,6 +181,9 @@ alert("app.js 読み込みOK");
   }
 
   function renderList(arr) {
+    const typeFilter = $('typeFilter')?.value || '';
+    if (typeFilter) items = items.filter(e => (e.type || '') === typeFilter);
+
     const list = $('list');
     list.innerHTML = '';
     if (arr.length === 0) {
@@ -412,6 +415,7 @@ if (typeLabel) chips.unshift(`<span class="chip wineType ${e.type}">🍷 ${typeL
         id: state.editingId || uid(),
         name: $('f_name').value.trim(),
         origin: $('f_origin').value.trim(),
+        type: $('f_type').value || '',
         grape: $('f_grape').value.trim(),
         const entry = {
   id: ...,
