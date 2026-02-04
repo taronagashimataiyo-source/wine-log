@@ -75,6 +75,16 @@
             </select>
           </div>
           <div style="width:140px;">
+  <label>種類</label>
+  <select id="typeFilter">
+    <option value="">指定なし</option>
+    <option value="red">赤</option>
+    <option value="white">白</option>
+    <option value="other">その他</option>
+  </select>
+</div>
+
+          <div style="width:140px;">
             <label>太郎★ 最低</label>
             <select id="minTaro">
               <option value="0">指定なし</option>
@@ -118,6 +128,16 @@
       <div style="margin-top:10px;" class="grid">
         <div><label>名前</label><input id="f_name" placeholder="例：ワイン名 / 生産者など"></div>
         <div><label>産地</label><input id="f_origin" placeholder="例：ブルゴーニュ / ナパ / 山梨"></div>
+        <div>
+  <label>種類</label>
+  <select id="f_type">
+    <option value="">未指定</option>
+    <option value="red">赤</option>
+    <option value="white">白</option>
+    <option value="other">その他</option>
+  </select>
+</div>
+
         <div><label>ブドウの品種</label><input id="f_grape" placeholder="例：ピノ・ノワール / シャルドネ"></div>
         <div><label>買った場所</label><input id="f_shop" placeholder="例：スーパー / ディプント / 蓼科"></div>
         <div><label>値段</label><input id="f_price" inputmode="numeric" placeholder="例：2500（円）"></div>
@@ -161,10 +181,6 @@
       </div>
 
       <div style="margin-top:10px;" class="grid">
-        <div>
-          <label>その他</label>
-          <textarea id="f_other" placeholder="メモ：温度、合わせた料理、リピートしたい等"></textarea>
-        </div>
         <div>
           <label>写真（任意：1枚）</label>
           <input id="f_photo" type="file" accept="image/*">
