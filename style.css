@@ -123,3 +123,11 @@ textarea{min-height:64px;resize:vertical}
   opacity:0;pointer-events:none;transition:.2s;z-index:20;
 }
 .toast.show{opacity:1}
+.brandLogo{
+  width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;
+  border-radius:10px;
+  background:#fff;
+  border:1px solid var(--border);
+}
