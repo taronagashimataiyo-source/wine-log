@@ -317,69 +317,6 @@ if (typeLabel) chips.unshift(`<span class="chip wineType ${e.type}">🍷 ${typeL
     $('modalBackdrop').style.display = 'none';
   }
 
-  function exportJson() {
-    const data = { exportedAt: nowIso(), entries: state.entries };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wine-log-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast('バックアップを書き出しました');
-  }
-
-  function importJson() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      let parsed;
-      try {
-        parsed = JSON.parse(await file.text());
-      } catch {
-        alert('JSONが読み込めません');
-        return;
-      }
-      const entries = parsed.entries || parsed;
-      if (!Array.isArray(entries)) {
-        alert('形式が違います');
-        return;
-      }
-      if (!confirm(`取り込みますか？（${entries.length}件）\n※同じIDは上書き`)) return;
-
-      const byId = new Map(state.entries.map(e => [e.id, e]));
-      for (const e of entries) {
-        const clean = {
-          id: e.id || uid(),
-          name: e.name || '',
-          origin: e.origin || '',
-          grape: e.grape || '',
-          type: e.type || '',
-          shop: e.shop || '',
-          price: (e.price === 0 || e.price) ? e.price : '',
-          taroRating: e.taroRating ?? '',
-          taroComment: e.taroComment || '',
-          makoRating: e.makoRating ?? '',
-          makoComment: e.makoComment || '',
-          other: e.other || '',
-          drankAt: e.drankAt || nowIso(),
-          photoDataUrl: e.photoDataUrl || null,
-        };
-        byId.set(clean.id, clean);
-      }
-
-      state.entries = [...byId.values()];
-      save();
-      refresh();
-      toast('取り込み完了');
-    };
-    input.click();
-  }
 
   function refresh() {
     applyFilters();
@@ -390,9 +327,7 @@ if (typeLabel) chips.unshift(`<span class="chip wineType ${e.type}">🍷 ${typeL
     $('btnAdd').addEventListener('pointerdown', (e) => { e.preventDefault(); openModal('add'); });
     $('btnClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeModal(); });
     $('btnSave').addEventListener('pointerdown', (e) => { e.preventDefault(); onSave(); });
-    $('btnExport').addEventListener('pointerdown', (e) => { e.preventDefault(); exportJson(); });
-    $('btnImport').addEventListener('pointerdown', (e) => { e.preventDefault(); importJson(); });
-
+   
     $('q').addEventListener('input', applyFilters);
     $('sort').addEventListener('change', applyFilters);
     $('minTaro').addEventListener('change', applyFilters);
