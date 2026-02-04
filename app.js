@@ -1,12 +1,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-
-const STORAGE_KEY = 'wineLogEntriesV1';
-
-let entries = loadEntries();
-let editingId = null;
-let editingPhotoDataUrl = '';
+const STORAGE_KEY = 'wineLogEntriesV2';
 
 function nowString() {
   const d = new Date();
@@ -16,13 +11,10 @@ function nowString() {
 
 function toast(msg) {
   const t = $('toast');
+  if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 1400);
-}
-
-function saveEntries() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 }
 
 function loadEntries() {
@@ -36,12 +28,25 @@ function loadEntries() {
   }
 }
 
+function saveEntries(entries) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+let entries = loadEntries();
+let editingId = null;
+let editingPhotoDataUrl = '';
+
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
 function openModal(entry = null) {
   editingId = entry?.id ?? null;
   editingPhotoDataUrl = entry?.photo ?? '';
 
   $('modalTitle').textContent = editingId ? '編集' : '追加';
-  $('btnDelete').style.display = editingId ? 'inline-flex' : 'none';
+  const delBtn = $('btnDelete');
+  if (delBtn) delBtn.style.display = editingId ? 'inline-flex' : 'none';
 
   $('f_name').value = entry?.name ?? '';
   $('f_origin').value = entry?.origin ?? '';
@@ -68,178 +73,186 @@ function closeModal() {
 
 function renderPhotoPreview(dataUrl) {
   const box = $('photoPreview');
+  if (!box) return;
   if (!dataUrl) {
     box.textContent = '写真なし';
-    box.style.backgroundImage = '';
-    box.classList.remove('has');
+    box.style.backgroundImage = 'none';
     return;
   }
   box.textContent = '';
   box.style.backgroundImage = `url(${dataUrl})`;
-  box.classList.add('has');
+  box.style.backgroundSize = 'cover';
+  box.style.backgroundPosition = 'center';
 }
 
-async function fileToResizedDataUrl(file, maxSize = 1200, quality = 0.85) {
-  const url = URL.createObjectURL(file);
-  try {
+function compressImageToDataUrl(file, maxW = 900, maxH = 900, quality = 0.8) {
+  return new Promise((resolve) => {
     const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      let { width: w, height: h } = img;
+      const ratio = Math.min(maxW / w, maxH / h, 1);
+      w = Math.round(w * ratio);
+      h = Math.round(h * ratio);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(dataUrl);
+    };
+    img.onerror = () => resolve('');
     img.src = url;
-    await new Promise((res, rej) => {
-      img.onload = () => res();
-      img.onerror = rej;
-    });
-
-    const w = img.naturalWidth;
-    const h = img.naturalHeight;
-    const scale = Math.min(1, maxSize / Math.max(w, h));
-    const cw = Math.round(w * scale);
-    const ch = Math.round(h * scale);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, cw, ch);
-
-    return canvas.toDataURL('image/jpeg', quality);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-function normalizeText(s) {
-  return (s || '').toString().trim();
+  });
 }
 
 function onSave() {
   const entry = {
-    id: editingId ?? crypto.randomUUID?.() ?? String(Date.now()),
-    name: normalizeText($('f_name').value),
-    origin: normalizeText($('f_origin').value),
-    grape: normalizeText($('f_grape').value),
+    id: editingId ?? uid(),
+    name: $('f_name').value.trim(),
+    origin: $('f_origin').value.trim(),
+    grape: $('f_grape').value.trim(),
     type: $('f_type').value || '',
-    shop: normalizeText($('f_shop').value),
-    price: normalizeText($('f_price').value),
+    shop: $('f_shop').value.trim(),
+    price: $('f_price').value.trim(),
     drankAt: $('f_drankAt').value || nowString(),
 
     taroRating: $('f_taroRating').value || '',
-    taroComment: normalizeText($('f_taroComment').value),
+    taroComment: $('f_taroComment').value.trim(),
     makoRating: $('f_makoRating').value || '',
-    makoComment: normalizeText($('f_makoComment').value),
+    makoComment: $('f_makoComment').value.trim(),
 
     photo: editingPhotoDataUrl || ''
   };
 
-  if (editingId) {
-    entries = entries.map(e => e.id === editingId ? entry : e);
-    toast('更新しました');
-  } else {
-    entries.unshift(entry);
-    toast('追加しました');
-  }
+  const idx = entries.findIndex(e => e.id === entry.id);
+  if (idx >= 0) entries[idx] = entry;
+  else entries.unshift(entry);
 
-  saveEntries();
-  closeModal();
+  saveEntries(entries);
   renderList();
+  closeModal();
+  toast('保存しました');
 }
 
 function onDelete() {
   if (!editingId) return;
-  if (!confirm('この記録を削除しますか？')) return;
   entries = entries.filter(e => e.id !== editingId);
-  saveEntries();
-  closeModal();
+  saveEntries(entries);
   renderList();
+  closeModal();
   toast('削除しました');
 }
 
+function typeLabel(type) {
+  if (type === 'red') return '赤';
+  if (type === 'white') return '白';
+  if (type === 'other') return 'その他';
+  return '';
+}
+
+function ratingStars(val) {
+  if (!val) return '未入力';
+  return '★'.repeat(Number(val));
+}
+
 function renderList() {
-  const q = normalizeText($('q').value).toLowerCase();
-  const sort = $('sort').value;
-  const minTaro = parseInt($('minTaro').value, 10) || 0;
-  const minMako = parseInt($('minMako').value, 10) || 0;
-  const typeFilter = $('typeFilter').value || '';
+  const list = $('list');
+  const empty = $('empty');
+  if (!list) return;
 
-  let items = [...entries];
+  const q = ($('q')?.value ?? '').trim().toLowerCase();
+  const sort = $('sort')?.value ?? 'new';
+  const typeF = $('typeFilter')?.value ?? '';
+  const minTaro = Number($('minTaro')?.value ?? '0');
+  const minMako = Number($('minMako')?.value ?? '0');
 
-  // filter
+  let data = entries.slice();
+
+  // 検索
   if (q) {
-    items = items.filter(e => {
-      const hay = `${e.name} ${e.origin} ${e.grape} ${e.shop}`.toLowerCase();
+    data = data.filter(e => {
+      const hay = `${e.name||''} ${e.origin||''} ${e.grape||''} ${e.shop||''}`.toLowerCase();
       return hay.includes(q);
     });
   }
 
-  if (typeFilter) {
-    items = items.filter(e => (e.type || '') === typeFilter);
+  // 種類フィルタ
+  if (typeF) {
+    data = data.filter(e => (e.type || '') === typeF);
   }
 
-  if (minTaro) {
-    items = items.filter(e => (parseInt(e.taroRating || '0', 10) || 0) >= minTaro);
-  }
+  // ★フィルタ
+  if (minTaro > 0) data = data.filter(e => Number(e.taroRating || 0) >= minTaro);
+  if (minMako > 0) data = data.filter(e => Number(e.makoRating || 0) >= minMako);
 
-  if (minMako) {
-    items = items.filter(e => (parseInt(e.makoRating || '0', 10) || 0) >= minMako);
-  }
+  // ソート
+  const toTime = (s) => {
+    // "YYYY-MM-DD HH:mm" 想定
+    const t = Date.parse((s || '').replace(' ', 'T'));
+    return Number.isFinite(t) ? t : 0;
+  };
 
-  // sort
-  const score = (v) => (parseInt(v || '0', 10) || 0);
-  if (sort === 'old') {
-    items.reverse();
-  } else if (sort === 'taro') {
-    items.sort((a, b) => score(b.taroRating) - score(a.taroRating));
-  } else if (sort === 'mako') {
-    items.sort((a, b) => score(b.makoRating) - score(a.makoRating));
-  } // new: default entries are newest-first when unshift
+  if (sort === 'new') data.sort((a,b) => toTime(b.drankAt) - toTime(a.drankAt));
+  if (sort === 'old') data.sort((a,b) => toTime(a.drankAt) - toTime(b.drankAt));
+  if (sort === 'taro') data.sort((a,b) => Number(b.taroRating||0) - Number(a.taroRating||0));
+  if (sort === 'mako') data.sort((a,b) => Number(b.makoRating||0) - Number(a.makoRating||0));
 
-  const list = $('list');
   list.innerHTML = '';
 
-  $('empty').style.display = items.length ? 'none' : 'block';
+  if (data.length === 0) {
+    if (empty) empty.style.display = 'block';
+    return;
+  } else {
+    if (empty) empty.style.display = 'none';
+  }
 
-  for (const e of items) {
+  for (const e of data) {
     const chips = [];
 
-    const typeLabel =
-      e.type === 'red' ? '赤' :
-      e.type === 'white' ? '白' :
-      e.type === 'other' ? 'その他' : '';
-    if (typeLabel) chips.push(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+    const tl = typeLabel(e.type);
+    if (tl) chips.push(`<span class="chip wineType ${e.type}">🍷 ${tl}</span>`);
+    if (e.origin) chips.push(`<span class="chip">📍 ${escapeHtml(e.origin)}</span>`);
+    if (e.grape) chips.push(`<span class="chip">🍇 ${escapeHtml(e.grape)}</span>`);
+    if (e.shop) chips.push(`<span class="chip">🛒 ${escapeHtml(e.shop)}</span>`);
+    if (e.price) chips.push(`<span class="chip">💴 ${escapeHtml(e.price)}</span>`);
 
-    if (e.origin) chips.push(`<span class="chip">${escapeHtml(e.origin)}</span>`);
-    if (e.grape) chips.push(`<span class="chip">${escapeHtml(e.grape)}</span>`);
-    if (e.shop) chips.push(`<span class="chip">${escapeHtml(e.shop)}</span>`);
-    if (e.price) chips.push(`<span class="chip">¥${escapeHtml(e.price)}</span>`);
+    const photo = e.photo
+      ? `<div class="thumbSmall" style="background-image:url('${e.photo}')"></div>`
+      : `<div class="thumbSmall noPhoto">No Photo</div>`;
 
     const card = document.createElement('div');
     card.className = 'item';
 
     card.innerHTML = `
       <div class="itemTop">
-        <div class="itemTitle">${escapeHtml(e.name || '(無題)')}</div>
-        <div class="itemDate">${escapeHtml(e.drankAt || '')}</div>
+        ${photo}
+        <div class="itemMain">
+          <div class="itemTitle">${escapeHtml(e.name || '（無題）')}</div>
+          <div class="itemSub">${escapeHtml(e.drankAt || '')}</div>
+          <div class="chips">${chips.join('')}</div>
+          <div class="ratings">
+            <div class="r"><span class="who">太郎</span> <span class="star">${ratingStars(e.taroRating)}</span> <span class="cm">${escapeHtml(e.taroComment||'')}</span></div>
+            <div class="r"><span class="who">真子</span> <span class="star">${ratingStars(e.makoRating)}</span> <span class="cm">${escapeHtml(e.makoComment||'')}</span></div>
+          </div>
+        </div>
       </div>
-
-      <div class="chips">${chips.join('')}</div>
-
-      <div class="ratings">
-        <div class="r"><span class="who">太郎</span><span class="stars">${renderStars(e.taroRating)}</span></div>
-        <div class="r"><span class="who">真子</span><span class="stars">${renderStars(e.makoRating)}</span></div>
-      </div>
-
-      ${e.photo ? `<div class="photo" style="background-image:url(${e.photo})"></div>` : ''}
-
       <div class="itemActions">
-        <button class="ghost" type="button" data-act="edit">開く</button>
-        <button class="ghost" type="button" data-act="dup">複製</button>
+        <button class="ghost" data-act="edit">開く</button>
+        <button class="ghost" data-act="copy">複製</button>
       </div>
     `;
 
     card.querySelector('[data-act="edit"]').addEventListener('click', () => openModal(e));
-    card.querySelector('[data-act="dup"]').addEventListener('click', () => {
-      const copy = { ...e, id: crypto.randomUUID?.() ?? String(Date.now()), drankAt: nowString() };
+    card.querySelector('[data-act="copy"]').addEventListener('click', () => {
+      const copy = { ...e, id: uid(), drankAt: nowString() };
       entries.unshift(copy);
-      saveEntries();
+      saveEntries(entries);
       renderList();
       toast('複製しました');
     });
@@ -248,49 +261,55 @@ function renderList() {
   }
 }
 
-function renderStars(v) {
-  const n = parseInt(v || '0', 10) || 0;
-  if (!n) return '<span class="muted">未入力</span>';
-  return '★'.repeat(n);
-}
-
 function escapeHtml(s) {
-  return (s ?? '').toString()
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
 }
 
-// Events
-window.addEventListener('DOMContentLoaded', () => {
-  $('btnAdd').addEventListener('click', () => openModal(null));
-  $('btnClose').addEventListener('click', closeModal);
-  $('btnSave').addEventListener('click', onSave);
-  $('btnDelete').addEventListener('click', onDelete);
+function bind() {
+  // ここが落ちると「押せない」になるので、必ず存在チェックしてから繋ぐ
+  const btnAdd = $('btnAdd');
+  if (btnAdd) btnAdd.addEventListener('click', () => openModal(null));
 
-  $('modalBackdrop').addEventListener('click', (ev) => {
-    if (ev.target === $('modalBackdrop')) closeModal();
-  });
+  const btnClose = $('btnClose');
+  if (btnClose) btnClose.addEventListener('click', closeModal);
 
-  $('q').addEventListener('input', renderList);
-  $('sort').addEventListener('change', renderList);
-  $('minTaro').addEventListener('change', renderList);
-  $('minMako').addEventListener('change', renderList);
-  $('typeFilter').addEventListener('change', renderList);
+  const backdrop = $('modalBackdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeModal();
+    });
+  }
 
-  $('f_photo').addEventListener('change', async (ev) => {
-    const file = ev.target.files?.[0];
-    if (!file) return;
-    try {
-      editingPhotoDataUrl = await fileToResizedDataUrl(file);
+  const btnSave = $('btnSave');
+  if (btnSave) btnSave.addEventListener('click', onSave);
+
+  const btnDelete = $('btnDelete');
+  if (btnDelete) btnDelete.addEventListener('click', onDelete);
+
+  const photo = $('f_photo');
+  if (photo) {
+    photo.addEventListener('change', async () => {
+      const f = photo.files?.[0];
+      if (!f) return;
+      editingPhotoDataUrl = await compressImageToDataUrl(f);
       renderPhotoPreview(editingPhotoDataUrl);
-      toast('写真を追加しました');
-    } catch {
-      toast('写真の読み込みに失敗しました');
-    }
+    });
+  }
+
+  // フィルタ類
+  ['q','sort','typeFilter','minTaro','minMako'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener('input', renderList);
+    el.addEventListener('change', renderList);
   });
 
   renderList();
-});
+}
+
+document.addEventListener('DOMContentLoaded', bind);
