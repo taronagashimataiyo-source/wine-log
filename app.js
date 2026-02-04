@@ -1,406 +1,296 @@
-alert("app.js 読み込みOK");
-(() => {
-  'use strict';
+'use strict';
 
-  const $ = (id) => document.getElementById(id);
-  const LS_KEY = 'wineLogEntries_v1';
+const $ = (id) => document.getElementById(id);
 
-  const state = {
-    entries: [],
-    editingId: null,
-    photoDataUrl: null,
-  };
+const STORAGE_KEY = 'wineLogEntriesV1';
 
-  function toast(msg, ms = 1500) {
-    const t = $('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), ms);
+let entries = loadEntries();
+let editingId = null;
+let editingPhotoDataUrl = '';
+
+function nowString() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+function saveEntries() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+function loadEntries() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
   }
+}
 
-  function nowIso() {
-    return new Date().toISOString();
+function openModal(entry = null) {
+  editingId = entry?.id ?? null;
+  editingPhotoDataUrl = entry?.photo ?? '';
+
+  $('modalTitle').textContent = editingId ? '編集' : '追加';
+  $('btnDelete').style.display = editingId ? 'inline-flex' : 'none';
+
+  $('f_name').value = entry?.name ?? '';
+  $('f_origin').value = entry?.origin ?? '';
+  $('f_grape').value = entry?.grape ?? '';
+  $('f_type').value = entry?.type ?? '';
+  $('f_shop').value = entry?.shop ?? '';
+  $('f_price').value = entry?.price ?? '';
+  $('f_drankAt').value = entry?.drankAt ?? nowString();
+
+  $('f_taroRating').value = entry?.taroRating ?? '';
+  $('f_taroComment').value = entry?.taroComment ?? '';
+  $('f_makoRating').value = entry?.makoRating ?? '';
+  $('f_makoComment').value = entry?.makoComment ?? '';
+
+  $('f_photo').value = '';
+  renderPhotoPreview(editingPhotoDataUrl);
+
+  $('modalBackdrop').setAttribute('aria-hidden', 'false');
+}
+
+function closeModal() {
+  $('modalBackdrop').setAttribute('aria-hidden', 'true');
+}
+
+function renderPhotoPreview(dataUrl) {
+  const box = $('photoPreview');
+  if (!dataUrl) {
+    box.textContent = '写真なし';
+    box.style.backgroundImage = '';
+    box.classList.remove('has');
+    return;
   }
+  box.textContent = '';
+  box.style.backgroundImage = `url(${dataUrl})`;
+  box.classList.add('has');
+}
 
-  function fmtDate(iso) {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${day} ${hh}:${mm}`;
-  }
-
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (s) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-    }[s]));
-  }
-
-  function load() {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      state.entries = raw ? JSON.parse(raw) : [];
-    } catch {
-      state.entries = [];
-    }
-  }
-
-  function save() {
-    localStorage.setItem(LS_KEY, JSON.stringify(state.entries));
-  }
-
-  function uid() {
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-
-  // 画像
-  function renderPhotoPreview() {
-    const box = $('photoPreview');
-    box.innerHTML = '';
-    if (!state.photoDataUrl) {
-      box.textContent = '写真なし';
-      return;
-    }
-    const img = document.createElement('img');
-    img.src = state.photoDataUrl;
-    box.appendChild(img);
-  }
-
-  function fileToImage(file) {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = fr.result;
-      };
-      fr.onerror = reject;
-      fr.readAsDataURL(file);
+async function fileToResizedDataUrl(file, maxSize = 1200, quality = 0.85) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await new Promise((res, rej) => {
+      img.onload = () => res();
+      img.onerror = rej;
     });
-  }
 
-  function downscaleToDataUrl(img, maxSide = 1200, quality = 0.78) {
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    const scale = Math.min(1, maxSide / Math.max(w, h));
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const scale = Math.min(1, maxSize / Math.max(w, h));
     const cw = Math.round(w * scale);
     const ch = Math.round(h * scale);
-    const c = document.createElement('canvas');
-    c.width = cw; c.height = ch;
-    const ctx = c.getContext('2d');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, cw, ch);
-    return c.toDataURL('image/jpeg', quality);
+
+    return canvas.toDataURL('image/jpeg', quality);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function normalizeText(s) {
+  return (s || '').toString().trim();
+}
+
+function onSave() {
+  const entry = {
+    id: editingId ?? crypto.randomUUID?.() ?? String(Date.now()),
+    name: normalizeText($('f_name').value),
+    origin: normalizeText($('f_origin').value),
+    grape: normalizeText($('f_grape').value),
+    type: $('f_type').value || '',
+    shop: normalizeText($('f_shop').value),
+    price: normalizeText($('f_price').value),
+    drankAt: $('f_drankAt').value || nowString(),
+
+    taroRating: $('f_taroRating').value || '',
+    taroComment: normalizeText($('f_taroComment').value),
+    makoRating: $('f_makoRating').value || '',
+    makoComment: normalizeText($('f_makoComment').value),
+
+    photo: editingPhotoDataUrl || ''
+  };
+
+  if (editingId) {
+    entries = entries.map(e => e.id === editingId ? entry : e);
+    toast('更新しました');
+  } else {
+    entries.unshift(entry);
+    toast('追加しました');
   }
 
-  async function handlePhoto(file) {
-    if (!file) {
-      state.photoDataUrl = null;
-      renderPhotoPreview();
-      return;
-    }
-    const img = await fileToImage(file);
-    state.photoDataUrl = downscaleToDataUrl(img);
-    renderPhotoPreview();
-  }
+  saveEntries();
+  closeModal();
+  renderList();
+}
 
-  // 表示
-  function stars(n, cls) {
-    if (!n) return `<span class="pill">未</span>`;
-    return `<span class="rating ${cls}">${'★'.repeat(n)}<span class="pill">${n}</span></span>`;
-  }
+function onDelete() {
+  if (!editingId) return;
+  if (!confirm('この記録を削除しますか？')) return;
+  entries = entries.filter(e => e.id !== editingId);
+  saveEntries();
+  closeModal();
+  renderList();
+  toast('削除しました');
+}
 
-  function textMatch(e, q) {
-    if (!q) return true;
-    const t = `${e.name || ''} ${e.origin || ''} ${e.grape || ''} ${e.shop || ''}`.toLowerCase();
-    return t.includes(q.toLowerCase());
-  }
+function renderList() {
+  const q = normalizeText($('q').value).toLowerCase();
+  const sort = $('sort').value;
+  const minTaro = parseInt($('minTaro').value, 10) || 0;
+  const minMako = parseInt($('minMako').value, 10) || 0;
+  const typeFilter = $('typeFilter').value || '';
 
-  function sortEntries(arr, sortKey) {
-    const a = [...arr];
-    const taro = (e) => Number(e.taroRating || 0);
-    const mako = (e) => Number(e.makoRating || 0);
-    a.sort((x, y) => {
-      if (sortKey === 'new') return new Date(y.drankAt) - new Date(x.drankAt);
-      if (sortKey === 'old') return new Date(x.drankAt) - new Date(y.drankAt);
-      if (sortKey === 'taro') return (taro(y) - taro(x)) || (new Date(y.drankAt) - new Date(x.drankAt));
-      if (sortKey === 'mako') return (mako(y) - mako(x)) || (new Date(y.drankAt) - new Date(x.drankAt));
-      return 0;
-    });
-    return a;
-  }
+  let items = [...entries];
 
-  function aggTop(entries, keyFn, ratingKey) {
-    const m = new Map();
-    for (const e of entries) {
-      const r = Number(e[ratingKey] || 0);
-      if (!r) continue;
-      const key = (keyFn(e) || '').trim();
-      if (!key) continue;
-      if (!m.has(key)) m.set(key, { sum: 0, n: 0 });
-      const obj = m.get(key);
-      obj.sum += r; obj.n += 1;
-    }
-    const arr = [...m.entries()].map(([k, v]) => ({ k, avg: v.sum / v.n, n: v.n }));
-    arr.sort((a, b) => (b.avg - a.avg) || (b.n - a.n));
-    return arr.slice(0, 5);
-  }
-
-  function chipTrend(icon, x) {
-    const avg = (Math.round(x.avg * 10) / 10).toFixed(1);
-    return `<span class="chip">${icon} ${escapeHtml(x.k)} <span class="pill">平均★${avg}</span> <span class="pill">${x.n}件</span></span>`;
-  }
-
-  function renderKpis(entries) {
-    const k = $('kpis');
-    k.innerHTML = '';
-    const sections = [
-      { label: '太郎', rk: 'taroRating' },
-      { label: '真子', rk: 'makoRating' },
-    ];
-    for (const s of sections) {
-      const topG = aggTop(entries, (e) => e.grape, s.rk);
-      const topO = aggTop(entries, (e) => e.origin, s.rk);
-
-      const box = document.createElement('div');
-      box.className = 'kpi';
-      box.innerHTML = `
-        <div class="kpi-title">
-          <div class="name">${escapeHtml(s.label)}の“当たり傾向”</div>
-          <span class="badge">★入りのみ</span>
-        </div>
-        <div class="small">品種 TOP</div>
-        <div class="chips">${topG.length ? topG.map(x => chipTrend('🍇', x)).join('') : '<span class="small">まだデータなし</span>'}</div>
-        <div class="small" style="margin-top:10px;">産地 TOP</div>
-        <div class="chips">${topO.length ? topO.map(x => chipTrend('📍', x)).join('') : '<span class="small">まだデータなし</span>'}</div>
-      `;
-      k.appendChild(box);
-    }
-  }
-
-  function renderList(arr) {
-    const typeFilter = $('typeFilter')?.value || '';
-    if (typeFilter) items = items.filter(e => (e.type || '') === typeFilter);
-
-    const list = $('list');
-    list.innerHTML = '';
-    if (arr.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'note';
-      empty.style.padding = '8px';
-      empty.textContent = 'まだ記録がありません。右上の「＋追加」から入れてみてください。';
-      list.appendChild(empty);
-      return;
-    }
-
-    for (const e of arr) {
-      const div = document.createElement('div');
-      div.className = 'item';
-
-      const thumb = document.createElement('div');
-      thumb.className = 'thumb';
-      if (e.photoDataUrl) {
-        const img = document.createElement('img');
-        img.src = e.photoDataUrl;
-        thumb.appendChild(img);
-      } else {
-        thumb.innerHTML = `<div class="muted">no photo</div>`;
-      }
-
-      const name = e.name?.trim() ? e.name : '(名前なし)';
-      const chips = [];
-      if (e.origin) chips.push(`<span class="chip">📍 ${escapeHtml(e.origin)}</span>`);
-      if (e.grape) chips.push(`<span class="chip">🍇 ${escapeHtml(e.grape)}</span>`);
-      if (e.shop) chips.push(`<span class="chip">🛒 ${escapeHtml(e.shop)}</span>`);
-      if (e.price !== '' && e.price != null) chips.push(`<span class="chip">💴 ${escapeHtml(String(e.price))}</span>`);
-
-      const typeLabel =
-  e.type === 'red' ? '赤' :
-  e.type === 'white' ? '白' :
-  e.type === 'other' ? 'その他' : '';
-
-if (typeLabel) chips.unshift(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
-
-
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      meta.innerHTML = `
-        <h3>${escapeHtml(name)}</h3>
-        <div class="subline">
-          <span class="badge">${escapeHtml(fmtDate(e.drankAt))}</span>
-          ${chips.join('')}
-        </div>
-        <div class="pair">
-          <span class="who">太郎</span>${stars(e.taroRating, 'star')}
-          <span class="who">真子</span>${stars(e.makoRating, 'star2')}
-        </div>
-        ${e.other ? `<div class="muted" style="margin-top:6px;">${escapeHtml(e.other).slice(0, 140)}${e.other.length > 140 ? '…' : ''}</div>` : ''}
-      `;
-
-      const right = document.createElement('div');
-      right.className = 'right';
-
-      const btnEdit = document.createElement('button');
-      btnEdit.textContent = '編集';
-      btnEdit.type = 'button';
-      btnEdit.addEventListener('pointerdown', (ev) => {
-        ev.preventDefault();
-        openModal('edit', e);
-      });
-
-      const btnDel = document.createElement('button');
-      btnDel.textContent = '削除';
-      btnDel.type = 'button';
-      btnDel.addEventListener('pointerdown', (ev) => {
-        ev.preventDefault();
-        if (!confirm('この記録を削除しますか？')) return;
-        state.entries = state.entries.filter(x => x.id !== e.id);
-        save();
-        refresh();
-        toast('削除しました');
-      });
-
-      right.appendChild(btnEdit);
-      right.appendChild(btnDel);
-
-      div.appendChild(thumb);
-      div.appendChild(meta);
-      div.appendChild(right);
-      list.appendChild(div);
-    }
-  }
-
-  function applyFilters() {
-    const q = $('q').value.trim();
-    const minTaro = Number($('minTaro').value || 0);
-    const minMako = Number($('minMako').value || 0);
-    const sortKey = $('sort').value;
-
-    let arr = state.entries.filter(e => textMatch(e, q));
-    if (minTaro > 0) arr = arr.filter(e => Number(e.taroRating || 0) >= minTaro);
-    if (minMako > 0) arr = arr.filter(e => Number(e.makoRating || 0) >= minMako);
-
-    arr = sortEntries(arr, sortKey);
-    renderList(arr);
-    renderKpis(state.entries);
-  }
-
-  function openModal(mode = 'add', entry = null) {
-    state.editingId = (mode === 'edit' && entry) ? entry.id : null;
-    state.photoDataUrl = entry?.photoDataUrl || null;
-
-    $('modalTitle').textContent = mode === 'edit' ? '編集' : '追加';
-    $('modalBackdrop').style.display = 'flex';
-
-    $('f_drankAt').value = fmtDate(entry?.drankAt || nowIso());
-    $('f_name').value = entry?.name || '';
-    $('f_origin').value = entry?.origin || '';
-    $('f_type').value = entry?.type ?? '';
-    $('f_grape').value = entry?.grape || '';
-    $('f_shop').value = entry?.shop || '';
-    $('f_price').value = entry?.price ?? '';
-
-    $('f_taroRating').value = entry?.taroRating ?? '';
-    $('f_taroComment').value = entry?.taroComment || '';
-    $('f_makoRating').value = entry?.makoRating ?? '';
-    $('f_makoComment').value = entry?.makoComment || '';
-
-    $('f_other').value = entry?.other || '';
-    $('f_photo').value = '';
-
-    renderPhotoPreview();
-  }
-
-  function closeModal() {
-    $('modalBackdrop').style.display = 'none';
-  }
-
-
-  function refresh() {
-    applyFilters();
-  }
-
-  function wire() {
-    // iPhone/Safariで確実に反応させるため pointerdown を使う
-    $('btnAdd').addEventListener('pointerdown', (e) => { e.preventDefault(); openModal('add'); });
-    $('btnClose').addEventListener('pointerdown', (e) => { e.preventDefault(); closeModal(); });
-    $('btnSave').addEventListener('pointerdown', (e) => { e.preventDefault(); onSave(); });
-   
-    $('q').addEventListener('input', applyFilters);
-    $('sort').addEventListener('change', applyFilters);
-    $('minTaro').addEventListener('change', applyFilters);
-    $('minMako').addEventListener('change', applyFilters);
-
-    $('modalBackdrop').addEventListener('pointerdown', (e) => {
-      if (e.target === $('modalBackdrop')) closeModal();
-    });
-
-    $('f_photo').addEventListener('change', async () => {
-      await handlePhoto($('f_photo').files?.[0]);
+  // filter
+  if (q) {
+    items = items.filter(e => {
+      const hay = `${e.name} ${e.origin} ${e.grape} ${e.shop}`.toLowerCase();
+      return hay.includes(q);
     });
   }
 
-  function onSave() {
+  if (typeFilter) {
+    items = items.filter(e => (e.type || '') === typeFilter);
+  }
+
+  if (minTaro) {
+    items = items.filter(e => (parseInt(e.taroRating || '0', 10) || 0) >= minTaro);
+  }
+
+  if (minMako) {
+    items = items.filter(e => (parseInt(e.makoRating || '0', 10) || 0) >= minMako);
+  }
+
+  // sort
+  const score = (v) => (parseInt(v || '0', 10) || 0);
+  if (sort === 'old') {
+    items.reverse();
+  } else if (sort === 'taro') {
+    items.sort((a, b) => score(b.taroRating) - score(a.taroRating));
+  } else if (sort === 'mako') {
+    items.sort((a, b) => score(b.makoRating) - score(a.makoRating));
+  } // new: default entries are newest-first when unshift
+
+  const list = $('list');
+  list.innerHTML = '';
+
+  $('empty').style.display = items.length ? 'none' : 'block';
+
+  for (const e of items) {
+    const chips = [];
+
+    const typeLabel =
+      e.type === 'red' ? '赤' :
+      e.type === 'white' ? '白' :
+      e.type === 'other' ? 'その他' : '';
+    if (typeLabel) chips.push(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+
+    if (e.origin) chips.push(`<span class="chip">${escapeHtml(e.origin)}</span>`);
+    if (e.grape) chips.push(`<span class="chip">${escapeHtml(e.grape)}</span>`);
+    if (e.shop) chips.push(`<span class="chip">${escapeHtml(e.shop)}</span>`);
+    if (e.price) chips.push(`<span class="chip">¥${escapeHtml(e.price)}</span>`);
+
+    const card = document.createElement('div');
+    card.className = 'item';
+
+    card.innerHTML = `
+      <div class="itemTop">
+        <div class="itemTitle">${escapeHtml(e.name || '(無題)')}</div>
+        <div class="itemDate">${escapeHtml(e.drankAt || '')}</div>
+      </div>
+
+      <div class="chips">${chips.join('')}</div>
+
+      <div class="ratings">
+        <div class="r"><span class="who">太郎</span><span class="stars">${renderStars(e.taroRating)}</span></div>
+        <div class="r"><span class="who">真子</span><span class="stars">${renderStars(e.makoRating)}</span></div>
+      </div>
+
+      ${e.photo ? `<div class="photo" style="background-image:url(${e.photo})"></div>` : ''}
+
+      <div class="itemActions">
+        <button class="ghost" type="button" data-act="edit">開く</button>
+        <button class="ghost" type="button" data-act="dup">複製</button>
+      </div>
+    `;
+
+    card.querySelector('[data-act="edit"]').addEventListener('click', () => openModal(e));
+    card.querySelector('[data-act="dup"]').addEventListener('click', () => {
+      const copy = { ...e, id: crypto.randomUUID?.() ?? String(Date.now()), drankAt: nowString() };
+      entries.unshift(copy);
+      saveEntries();
+      renderList();
+      toast('複製しました');
+    });
+
+    list.appendChild(card);
+  }
+}
+
+function renderStars(v) {
+  const n = parseInt(v || '0', 10) || 0;
+  if (!n) return '<span class="muted">未入力</span>';
+  return '★'.repeat(n);
+}
+
+function escapeHtml(s) {
+  return (s ?? '').toString()
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// Events
+window.addEventListener('DOMContentLoaded', () => {
+  $('btnAdd').addEventListener('click', () => openModal(null));
+  $('btnClose').addEventListener('click', closeModal);
+  $('btnSave').addEventListener('click', onSave);
+  $('btnDelete').addEventListener('click', onDelete);
+
+  $('modalBackdrop').addEventListener('click', (ev) => {
+    if (ev.target === $('modalBackdrop')) closeModal();
+  });
+
+  $('q').addEventListener('input', renderList);
+  $('sort').addEventListener('change', renderList);
+  $('minTaro').addEventListener('change', renderList);
+  $('minMako').addEventListener('change', renderList);
+  $('typeFilter').addEventListener('change', renderList);
+
+  $('f_photo').addEventListener('change', async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
     try {
-      $('btnSave').disabled = true;
-
-      const entry = {
-        id: state.editingId || uid(),
-        name: $('f_name').value.trim(),
-        origin: $('f_origin').value.trim(),
-        type: $('f_type').value || '',
-        grape: $('f_grape').value.trim(),
-        const entry = {
-  id: ...,
-  name: $('f_name').value.trim(),
-  origin: $('f_origin').value.trim(),
-  grape: $('f_grape').value.trim(),
-  type: $('f_type').value || '',
-  shop: $('f_shop').value.trim(),
-  ...
-};
-
-        shop: $('f_shop').value.trim(),
-        price: $('f_price').value.trim(),
-
-        taroRating: $('f_taroRating').value ? Number($('f_taroRating').value) : '',
-        taroComment: $('f_taroComment').value.trim(),
-
-        makoRating: $('f_makoRating').value ? Number($('f_makoRating').value) : '',
-        makoComment: $('f_makoComment').value.trim(),
-
-        other: $('f_other').value.trim(),
-        drankAt: state.editingId
-          ? (state.entries.find(e => e.id === state.editingId)?.drankAt || nowIso())
-          : nowIso(),
-
-        photoDataUrl: state.photoDataUrl || null,
-      };
-
-      const idx = state.entries.findIndex(e => e.id === entry.id);
-      if (idx >= 0) state.entries[idx] = entry;
-      else state.entries.unshift(entry); // 新規は上に
-
-      save();
-      closeModal();
-      refresh();
-      toast('保存しました');
-    } catch (err) {
-      console.error(err);
-      alert('保存に失敗しました：' + (err?.message || err));
-    } finally {
-      $('btnSave').disabled = false;
+      editingPhotoDataUrl = await fileToResizedDataUrl(file);
+      renderPhotoPreview(editingPhotoDataUrl);
+      toast('写真を追加しました');
+    } catch {
+      toast('写真の読み込みに失敗しました');
     }
-  }
+  });
 
-  function init() {
-    wire();
-    load();
-    refresh();
-    toast('準備OK');
-  }
-
-  window.addEventListener('DOMContentLoaded', init);
-})();
+  renderList();
+});
