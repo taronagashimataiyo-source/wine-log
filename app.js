@@ -213,6 +213,14 @@ alert("app.js 読み込みOK");
       if (e.shop) chips.push(`<span class="chip">🛒 ${escapeHtml(e.shop)}</span>`);
       if (e.price !== '' && e.price != null) chips.push(`<span class="chip">💴 ${escapeHtml(String(e.price))}</span>`);
 
+      const typeLabel =
+  e.type === 'red' ? '赤' :
+  e.type === 'white' ? '白' :
+  e.type === 'other' ? 'その他' : '';
+
+if (typeLabel) chips.unshift(`<span class="chip wineType ${e.type}">🍷 ${typeLabel}</span>`);
+
+
       const meta = document.createElement('div');
       meta.className = 'meta';
       meta.innerHTML = `
@@ -286,6 +294,7 @@ alert("app.js 読み込みOK");
     $('f_drankAt').value = fmtDate(entry?.drankAt || nowIso());
     $('f_name').value = entry?.name || '';
     $('f_origin').value = entry?.origin || '';
+    $('f_type').value = entry?.type ?? '';
     $('f_grape').value = entry?.grape || '';
     $('f_shop').value = entry?.shop || '';
     $('f_price').value = entry?.price ?? '';
@@ -347,6 +356,7 @@ alert("app.js 読み込みOK");
           name: e.name || '',
           origin: e.origin || '',
           grape: e.grape || '',
+          type: e.type || '',
           shop: e.shop || '',
           price: (e.price === 0 || e.price) ? e.price : '',
           taroRating: e.taroRating ?? '',
@@ -403,6 +413,16 @@ alert("app.js 読み込みOK");
         name: $('f_name').value.trim(),
         origin: $('f_origin').value.trim(),
         grape: $('f_grape').value.trim(),
+        const entry = {
+  id: ...,
+  name: $('f_name').value.trim(),
+  origin: $('f_origin').value.trim(),
+  grape: $('f_grape').value.trim(),
+  type: $('f_type').value || '',
+  shop: $('f_shop').value.trim(),
+  ...
+};
+
         shop: $('f_shop').value.trim(),
         price: $('f_price').value.trim(),
 
