@@ -5,20 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Wine Log</title>
   <meta name="theme-color" content="#fff7f2">
-
-  <!-- アイコン（存在するlogo.svgを使う） -->
   <link rel="icon" href="./icons/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/logo.svg">
-
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css".brandLogo{
-  width:28px;
-  height:28px;
-  margin-right:10px;
-  vertical-align:middle;
-  border-radius:10px;
-}
->
+  <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
@@ -26,7 +16,6 @@
     <header>
       <div class="brand">
         <img src="./icons/logo.svg" alt="Wine Log" class="brandLogo">
-
         <div>
           <div class="title">Wine Log</div>
           <div class="sub">長島家ワイン記録</div>
@@ -39,165 +28,15 @@
       </div>
     </header>
 
-    <div class="row">
-      <div class="card" style="flex:1;min-width:280px;">
-        <h2>傾向</h2>
-        <div class="kpis" id="kpis"></div>
-        <div class="note" style="margin-top:8px;">★が入っているデータだけで集計</div>
-    
-      </div>
-      <div class="field">
-  <label for="f_type">種類</label>
-  <select id="f_type">
-    <option value="">未指定</option>
-    <option value="red">赤</option>
-    <option value="white">白</option>
-    <option value="other">その他</option>
-  </select>
-</div>
-
-
-      <div class="card" style="flex:1;min-width:280px;">
-        <h2>検索・絞り込み</h2>
-        <div class="filters">
-          <div style="min-width:220px;flex:1;">
-            <label>検索（名前 / 産地 / 品種 / 購入先）</label>
-            <input id="q" placeholder="例：ピノ / ブルゴーニュ / 成城石井 …">
-        
-          </div>
-          <div style="width:160px;">
-            <label>並び替え</label>
-            <select id="sort">
-              <option value="new">新しい順</option>
-              <option value="old">古い順</option>
-              <option value="taro">太郎★が高い順</option>
-              <option value="mako">真子★が高い順</option>
-            </select>
-          </div>
-          <div style="width:140px;">
-  <label>種類</label>
-  <select id="typeFilter">
-    <option value="">指定なし</option>
-    <option value="red">赤</option>
-    <option value="white">白</option>
-    <option value="other">その他</option>
-  </select>
-</div>
-
-          <div style="width:140px;">
-            <label>太郎★ 最低</label>
-            <select id="minTaro">
-              <option value="0">指定なし</option>
-              <option value="5">5以上</option>
-              <option value="4">4以上</option>
-              <option value="3">3以上</option>
-              <option value="2">2以上</option>
-              <option value="1">1以上</option>
-            </select>
-          </div>
-          <div style="width:140px;">
-            <label>真子★ 最低</label>
-            <select id="minMako">
-              <option value="0">指定なし</option>
-              <option value="5">5以上</option>
-              <option value="4">4以上</option>
-              <option value="3">3以上</option>
-              <option value="2">2以上</option>
-              <option value="1">1以上</option>
-            </select>
-          </div>
-        </div>
-        <div class="note" style="margin-top:8px;">ヒント：まずは「★4以上」で“当たり傾向”が一発で出ます。</div>
-      </div>
-    </div>
-
     <div class="card" style="margin-top:12px;">
       <h2>記録一覧</h2>
-      <div class="note">写真は任意。飲んだ日は自動。空欄でも保存できます。</div>
       <div class="list" id="list"></div>
     </div>
   </div>
 
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true">
-      <header>
-        <div class="title" id="modalTitle">追加</div>
-        <div class="note">保存後に一覧へ反映されます。</div>
-      </header>
-
-      <div style="margin-top:10px;" class="grid">
-        <div><label>名前</label><input id="f_name" placeholder="例：ワイン名 / 生産者など"></div>
-        <div><label>産地</label><input id="f_origin" placeholder="例：ブルゴーニュ / ナパ / 山梨"></div>
-        <div>
-  <label>種類</label>
-  <select id="f_type">
-    <option value="">未指定</option>
-    <option value="red">赤</option>
-    <option value="white">白</option>
-    <option value="other">その他</option>
-  </select>
-</div>
-
-        <div><label>ブドウの品種</label><input id="f_grape" placeholder="例：ピノ・ノワール / シャルドネ"></div>
-        <div><label>買った場所</label><input id="f_shop" placeholder="例：スーパー / ディプント / 蓼科"></div>
-        <div><label>値段</label><input id="f_price" inputmode="numeric" placeholder="例：2500（円）"></div>
-        <div><label>飲んだ日（自動）</label><input id="f_drankAt" disabled></div>
-      </div>
-
-      <div style="margin-top:10px;" class="grid">
-        <div class="card" style="padding:10px;">
-          <h2 style="margin:0 0 6px 0;">太郎</h2>
-          <div class="grid">
-            <div>
-              <label>評価（1〜5）</label>
-              <select id="f_taroRating">
-                <option value="">未入力</option>
-                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-              </select>
-            </div>
-            <div>
-              <label>コメント</label>
-              <textarea id="f_taroComment" placeholder="短くでOK（例：香り強い、酸が好き）"></textarea>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" style="padding:10px;">
-          <h2 style="margin:0 0 6px 0;">真子</h2>
-          <div class="grid">
-            <div>
-              <label>評価（1〜5）</label>
-              <select id="f_makoRating">
-                <option value="">未入力</option>
-                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-              </select>
-            </div>
-            <div>
-              <label>コメント</label>
-              <textarea id="f_makoComment" placeholder="短くでOK"></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:10px;" class="grid">
-        <div>
-          <label>写真（任意：1枚）</label>
-          <input id="f_photo" type="file" accept="image/*">
-          <div class="note" style="margin-top:6px;">写真は自動で縮小して保存します（容量増えすぎ防止）。</div>
-          <div class="thumb" style="margin-top:8px;width:120px;height:120px;" id="photoPreview">写真なし</div>
-        </div>
-      </div>
-
-      <div class="footer">
-        <button class="ghost" id="btnClose" type="button">閉じる</button>
-        <button class="primary" id="btnSave" type="button">保存</button>
-      </div>
-    </div>
-  </div>
-
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true"></div>
   <div class="toast" id="toast">OK</div>
-<script defer src="./app.js?v=20260204a"></script>
 
+  <script defer src="./app.js?v=20260204a"></script>
 </body>
 </html>
