@@ -55,3 +55,6 @@ textarea{min-height:84px;resize:vertical;}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111;color:white;padding:10px 14px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:60;}
 .toast.show{opacity:0.92;}
 .note{color:var(--muted);font-size:12px;line-height:1.5;}
+.chip.wineType.red   { background:#ffe5ea; border-color:#ffb3c2; }
+.chip.wineType.white { background:#fff6d6; border-color:#ffe08a; }
+.chip.wineType.other { background:#f0f1f3; border-color:#d9dde3; }
