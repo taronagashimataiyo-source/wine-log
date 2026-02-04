@@ -2,7 +2,7 @@
 
 /** ★ここを自分の値に変更 **/
 const API_URL = 'https://script.google.com/macros/s/AKfycbxqt_2vJDsl4_OBDkLimOLdX6TpSAQc7ZryPgLMtcxffwgEaBDBwXfaJyIRf3Yhv-0zng/exec';
-const API_KEY = 'PASTE_TAROMAKO-winelog';
+const API_KEY = 'TAROMAKO-winelog';
 
 const $ = (id) => document.getElementById(id);
 let entries = [];
